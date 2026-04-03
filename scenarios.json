@@ -1,0 +1,112 @@
+[
+  {
+    "id": "S1",
+    "event_type": "rx_written",
+    "patient_status": "not filled after 10 days",
+    "hcp_activity": "prescribed but no follow-up",
+    "payer_context": "prior authorization required",
+    "hub_activity": "no case opened",
+    "financial_info": "copay unknown",
+    "timing": "10 days since prescription",
+    "notes": "specialty drug"
+  },
+  {
+    "id": "S2",
+    "event_type": "rx_abandoned",
+    "patient_status": "did not pick up medication",
+    "hcp_activity": "no further engagement",
+    "payer_context": "approved",
+    "hub_activity": "benefits verified",
+    "financial_info": "copay $250",
+    "timing": "5 days after approval",
+    "notes": ""
+  },
+  {
+    "id": "S3",
+    "event_type": "low_rx_trend",
+    "patient_status": "eligible patients not converting",
+    "hcp_activity": "high engagement but low prescribing",
+    "payer_context": "no restriction",
+    "hub_activity": "not applicable",
+    "financial_info": "standard copay",
+    "timing": "last 60 days",
+    "notes": "new therapy"
+  },
+  {
+    "id": "S4",
+    "event_type": "therapy_drop",
+    "patient_status": "stopped after 2 months",
+    "hcp_activity": "not aware yet",
+    "payer_context": "approved",
+    "hub_activity": "no follow-up calls",
+    "financial_info": "copay manageable",
+    "timing": "60 days into therapy",
+    "notes": "chronic condition"
+  },
+  {
+    "id": "S5",
+    "event_type": "rx_written",
+    "patient_status": "not dispensed",
+    "hcp_activity": "completed prescription",
+    "payer_context": "approved",
+    "hub_activity": "case opened",
+    "financial_info": "covered",
+    "timing": "7 days delay",
+    "notes": "specialty pharmacy backlog"
+  },
+  {
+    "id": "S6",
+    "event_type": "rx_written",
+    "patient_status": "not started therapy",
+    "hcp_activity": "no referral to hub",
+    "payer_context": "prior auth required",
+    "hub_activity": "no enrollment",
+    "financial_info": "unknown",
+    "timing": "8 days",
+    "notes": ""
+  },
+  {
+    "id": "S7",
+    "event_type": "hcp_query",
+    "patient_status": "n/a",
+    "hcp_activity": "asked about clinical differentiation",
+    "payer_context": "n/a",
+    "hub_activity": "n/a",
+    "financial_info": "n/a",
+    "timing": "recent interaction",
+    "notes": "no MSL follow-up"
+  },
+  {
+    "id": "S8",
+    "event_type": "refill_gap",
+    "patient_status": "late refill by 12 days",
+    "hcp_activity": "no outreach",
+    "payer_context": "approved",
+    "hub_activity": "inactive",
+    "financial_info": "low copay",
+    "timing": "ongoing therapy",
+    "notes": ""
+  },
+  {
+    "id": "S9",
+    "event_type": "low_conversion",
+    "patient_status": "patients not starting",
+    "hcp_activity": "uncertain about coverage",
+    "payer_context": "complex step therapy",
+    "hub_activity": "limited support",
+    "financial_info": "varies",
+    "timing": "ongoing",
+    "notes": ""
+  },
+  {
+    "id": "S10",
+    "event_type": "high_intent_signal",
+    "patient_status": "eligible",
+    "hcp_activity": "researching therapy online",
+    "payer_context": "favorable",
+    "hub_activity": "not engaged",
+    "financial_info": "reasonable",
+    "timing": "recent",
+    "notes": "no field follow-up"
+  }
+]
