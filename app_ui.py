@@ -1,535 +1,657 @@
+import html
 import json
-import streamlit as st
 from pathlib import Path
+
+import streamlit as st
 
 st.set_page_config(page_title="Barrier-to-Action Agent", layout="wide")
 
-# imports that might use streamlit should come AFTER set_page_config
 from claude_client import analyze_barrier
-from formatter import normalize_analysis, build_formatted_outputs
+from formatter import build_formatted_outputs, normalize_analysis
 
-# ── Global CSS ────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
 
-/* ── Page padding & background ── */
-.main .block-container {
-    max-width: 1200px;
-    padding: 2rem 3rem 4rem 3rem;
-}
-
-/* ── All labels: dark, clean ── */
-label, .stTextInput label, .stTextArea label,
-div[data-testid="stTextInput"] label,
-div[data-testid="stTextAreaRootElement"] label {
-    color: #374151 !important;
-    font-size: 0.82rem !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.01em;
-    margin-bottom: 4px !important;
-}
-
-/* ── Text inputs ── */
-.stTextInput > div,
-.stTextInput > div > div {
-    overflow: visible !important;
-    border: none !important;
-    background: transparent !important;
-}
-
-.stTextInput > div > div > input {
-    background-color: #FFFFFF !important;
-    border: 2px solid #94A3B8 !important;
-    border-radius: 8px !important;
-    color: #111827 !important;
-    font-size: 0.88rem !important;
-    padding: 0.55rem 0.85rem !important;
-    height: 44px !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-}
-
-.stTextInput > div > div > input:focus {
-    border-color: #2563EB !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
-    outline: none !important;
-}
-
-/* ── Text areas ── */
-.stTextArea > div,
-.stTextArea > div > div {
-    overflow: visible !important;
-    border: none !important;
-    background: transparent !important;
-}
-
-.stTextArea > div > div > textarea {
-    background-color: #FFFFFF !important;
-    border: 2px solid #94A3B8 !important;
-    border-radius: 8px !important;
-    color: #111827 !important;
-    font-size: 0.88rem !important;
-    padding: 0.6rem 0.85rem !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
-    box-sizing: border-box !important;
-    width: 100% !important;
-    resize: vertical;
-}
-
-.stTextArea > div > div > textarea:focus {
-    border-color: #2563EB !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
-    outline: none !important;
-}
-
-/* ── Demo scenario buttons ── */
-.stButton > button {
-    background-color: #F8FAFC !important;
-    color: #1E3A5F !important;
-    border: 2px solid #B8C4D4 !important;
-    border-radius: 20px !important;
-    font-weight: 600 !important;
-    font-size: 0.78rem !important;
-    height: 36px !important;
-    padding: 0 1rem !important;
-    white-space: nowrap !important;
-    transition: all 0.18s ease !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
-}
-
-.stButton > button:hover {
-    background-color: #1E3A5F !important;
-    color: #FFFFFF !important;
-    border-color: #1E3A5F !important;
-    box-shadow: 0 3px 8px rgba(30, 58, 95, 0.28) !important;
-}
-
-/* ── Primary submit button ── */
-.stFormSubmitButton > button {
-    background-color: #1E3A5F !important;
-    color: #FFFFFF !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-weight: 700 !important;
-    font-size: 0.95rem !important;
-    height: 48px !important;
-    letter-spacing: 0.03em !important;
-    box-shadow: 0 2px 8px rgba(30, 58, 95, 0.25) !important;
-    transition: background-color 0.18s ease, box-shadow 0.18s ease !important;
-}
-
-.stFormSubmitButton > button:hover {
-    background-color: #2563EB !important;
-    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3) !important;
-}
-
-/* ── Form card — navy top accent ── */
-[data-testid="stForm"] {
-    background-color: #FFFFFF !important;
-    border: 2px solid #B8C4D4 !important;
-    border-top: 4px solid #1E3A5F !important;
-    border-radius: 14px !important;
-    padding: 2rem 2.25rem !important;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07) !important;
-}
-
-/* ── Metric cards ── */
-[data-testid="metric-container"] {
-    background-color: #FFFFFF !important;
-    border: 2px solid #B8C4D4 !important;
-    border-top: 4px solid #1E3A5F !important;
-    border-radius: 12px !important;
-    padding: 1.1rem 1.4rem !important;
-    box-shadow: 0 3px 10px rgba(30, 58, 95, 0.08) !important;
-}
-
-[data-testid="stMetricValue"] {
-    color: #1E3A5F !important;
-    font-size: 1.1rem !important;
-    font-weight: 700 !important;
-}
-
-[data-testid="stMetricLabel"] {
-    color: #6B7280 !important;
-    font-size: 0.72rem !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.07em !important;
-}
-
-/* ── Bordered output containers ── */
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background-color: #FFFFFF !important;
-    border: 2px solid #B8C4D4 !important;
-    border-radius: 12px !important;
-    padding: 0.25rem !important;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06) !important;
-}
-
-/* ── Alert boxes ── */
-[data-testid="stAlert"] {
-    border-radius: 10px !important;
-    font-size: 0.88rem !important;
-    border-width: 2px !important;
-}
-
-/* ── Expanders ── */
-[data-testid="stExpander"] {
-    background-color: #FFFFFF !important;
-    border: 2px solid #B8C4D4 !important;
-    border-radius: 10px !important;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
-}
-
-[data-testid="stExpander"] summary {
-    font-weight: 600 !important;
-    color: #1E3A5F !important;
-    font-size: 0.88rem !important;
-    padding: 0.75rem 1rem !important;
-}
-
-/* ── Divider ── */
-hr {
-    border: none !important;
-    border-top: 2px solid #D1DCE8 !important;
-    margin: 1.75rem 0 !important;
-}
-
-/* ── Code block ── */
-code, .stCode {
-    border-radius: 8px !important;
-    font-size: 0.84rem !important;
-}
-
-/* ── Caption / footer ── */
-[data-testid="stCaptionContainer"] p {
-    color: #9CA3AF !important;
-    font-size: 0.78rem !important;
-    text-align: center;
-}
-
-/* ── Section header card (left navy accent bar) ── */
-.section-header {
-    background: #FFFFFF;
-    border: 2px solid #B8C4D4;
-    border-left: 5px solid #1E3A5F;
-    border-radius: 10px;
-    padding: 0.85rem 1.25rem;
-    margin-bottom: 1.1rem;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-}
-
-.section-header h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1E3A5F;
-    letter-spacing: -0.01em;
-}
-
-.section-header p {
-    margin: 0.2rem 0 0 0;
-    font-size: 0.78rem;
-    color: #6B7280;
-}
-
-/* ── Demo card wrapper ── */
-.demo-card {
-    background: #FFFFFF;
-    border: 2px solid #B8C4D4;
-    border-top: 4px solid #2563EB;
-    border-radius: 14px;
-    padding: 1.1rem 1.5rem 0.9rem 1.5rem;
-    margin-bottom: 1.25rem;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-}
-
-.section-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #6B7280;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    display: block;
-    margin-bottom: 0.75rem;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# ── Header banner ─────────────────────────────────────────────────────────────
-st.markdown("""
-<div style="
-    background: linear-gradient(135deg, #0F2A4A 0%, #1E3A5F 45%, #2563EB 100%);
-    padding: 2.25rem 2.75rem;
-    border-radius: 16px;
-    margin-bottom: 1.75rem;
-    border: 2px solid #0F2A4A;
-    box-shadow: 0 6px 24px rgba(15, 42, 74, 0.25);
-">
-    <div style="
-        font-size: 0.68rem; font-weight: 800; color: #60A5FA;
-        text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 0.6rem;
-    ">Pharma Commercial Operations</div>
-    <div style="
-        color: #FFFFFF; font-size: 1.85rem; font-weight: 800;
-        letter-spacing: -0.025em; line-height: 1.15; margin-bottom: 0.65rem;
-    ">Barrier-to-Action Agent</div>
-    <div style="color: #BFDBFE; font-size: 0.9rem; line-height: 1.6; max-width: 640px;">
-        Converts real-world pharma signals into barrier classifications,
-        owner assignments, and role-based actions — ready for CRM and field use.
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ── Agent overview ────────────────────────────────────────────────────────────
-with st.expander("What this agent does", expanded=False):
-    st.markdown("""
-    This agent processes structured commercial signals from field teams, hub operations,
-    and patient support systems — and returns:
-
-    - **Barrier Classification** — the single most likely barrier blocking therapy progress
-    - **Owner Assignment** — the role accountable for resolving it
-    - **Recommended Actions** — specific, executable steps mapped to real-world pharma workflows
-    - **Formatted Outputs** — CRM-ready task title, owner action card, escalation note, and executive summary
-
-    _Powered by Claude. Designed for pharma commercial operations teams._
-    """)
-
-st.markdown("<div style='margin-top:1.25rem;'></div>", unsafe_allow_html=True)
-
-# ── Session state ─────────────────────────────────────────────────────────────
-if "history" not in st.session_state:
-    st.session_state.history = []
-
-# ── Demo scenario presets — loaded from scenarios.json ────────────────────────
 SCENARIO_LABELS = {
-    "S1":  "Prior Auth Stall",
-    "S2":  "High Copay Drop-off",
-    "S3":  "Low Rx Trend",
-    "S4":  "Therapy Drop",
-    "S5":  "SP Backlog",
-    "S6":  "No Hub Referral",
-    "S7":  "HCP Query",
-    "S8":  "Refill Gap",
-    "S9":  "Step Therapy Block",
+    "S1": "Prior Auth Stall",
+    "S2": "High Copay Drop-off",
+    "S3": "Low Rx Trend",
+    "S4": "Therapy Drop",
+    "S5": "SP Backlog",
+    "S6": "No Hub Referral",
+    "S7": "HCP Query",
+    "S8": "Refill Gap",
+    "S9": "Step Therapy Block",
     "S10": "High Intent Signal",
 }
 
-_raw_scenarios = json.loads(Path("scenarios.json").read_text())
-DEMO_SCENARIOS = {
-    SCENARIO_LABELS[s["id"]]: {k: v for k, v in s.items() if k != "id"}
-    for s in _raw_scenarios
-    if s["id"] in SCENARIO_LABELS
+
+st.markdown(
+    """
+    <style>
+    :root {
+        --ink: #10233f;
+        --muted: #5f708a;
+        --line: #d7e0ea;
+        --panel: rgba(255, 255, 255, 0.92);
+        --panel-strong: #ffffff;
+        --accent: #0f5bd8;
+        --accent-deep: #0b3d91;
+        --accent-soft: #e8f0ff;
+        --success: #0f7b6c;
+        --warning: #c17a10;
+        --shadow: 0 20px 50px rgba(11, 36, 71, 0.10);
+    }
+
+    .stApp {
+        background:
+            radial-gradient(circle at top left, rgba(15, 91, 216, 0.10), transparent 34%),
+            radial-gradient(circle at top right, rgba(16, 35, 63, 0.08), transparent 28%),
+            linear-gradient(180deg, #f6f8fb 0%, #eef3f8 100%);
+    }
+
+    .main .block-container {
+        max-width: 1240px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+
+    h1, h2, h3, h4, p, li, label {
+        color: var(--ink);
+    }
+
+    .hero-shell {
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(140deg, #0f223f 0%, #173c68 55%, #0f5bd8 100%);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        border-radius: 28px;
+        padding: 2rem 2.2rem;
+        box-shadow: 0 28px 60px rgba(9, 26, 51, 0.22);
+        margin-bottom: 1.5rem;
+    }
+
+    .hero-shell:before {
+        content: "";
+        position: absolute;
+        inset: auto -10% -35% auto;
+        width: 320px;
+        height: 320px;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 62%);
+    }
+
+    .hero-kicker {
+        display: inline-block;
+        font-size: 0.72rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: #8ec1ff;
+        margin-bottom: 0.8rem;
+    }
+
+    .hero-title {
+        font-size: 2.25rem;
+        line-height: 1.05;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        color: #ffffff;
+        margin-bottom: 0.85rem;
+        max-width: 760px;
+    }
+
+    .hero-copy {
+        max-width: 720px;
+        font-size: 1rem;
+        line-height: 1.65;
+        color: rgba(235, 243, 255, 0.92);
+    }
+
+    .hero-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.85rem;
+        margin-top: 1.4rem;
+    }
+
+    .hero-chip {
+        background: rgba(255, 255, 255, 0.10);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 18px;
+        padding: 0.9rem 1rem;
+        backdrop-filter: blur(12px);
+    }
+
+    .hero-chip-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #9cc6ff;
+        font-weight: 700;
+        margin-bottom: 0.35rem;
+    }
+
+    .hero-chip-value {
+        color: white;
+        font-size: 0.95rem;
+        font-weight: 600;
+        line-height: 1.4;
+    }
+
+    .section-card {
+        background: var(--panel);
+        border: 1px solid rgba(16, 35, 63, 0.08);
+        border-radius: 24px;
+        padding: 1.4rem;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+        margin-bottom: 1.15rem;
+    }
+
+    .section-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.25rem;
+    }
+
+    .section-copy {
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.55;
+        margin-bottom: 1rem;
+    }
+
+    .stat-card {
+        background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 1rem 1.1rem;
+        min-height: 112px;
+        box-shadow: 0 10px 24px rgba(16, 35, 63, 0.06);
+    }
+
+    .stat-label {
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.8rem;
+    }
+
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: 750;
+        color: var(--ink);
+        line-height: 1.3;
+    }
+
+    .insight-band {
+        background: linear-gradient(90deg, rgba(15, 91, 216, 0.08), rgba(15, 91, 216, 0.02));
+        border: 1px solid rgba(15, 91, 216, 0.14);
+        border-radius: 18px;
+        padding: 1rem 1.1rem;
+        margin-top: 0.9rem;
+    }
+
+    .insight-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-weight: 700;
+        color: var(--accent-deep);
+        margin-bottom: 0.45rem;
+    }
+
+    .insight-copy {
+        color: var(--ink);
+        font-size: 0.96rem;
+        line-height: 1.6;
+    }
+
+    .action-card {
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 1rem 1.1rem;
+        box-shadow: 0 12px 28px rgba(16, 35, 63, 0.05);
+        margin-bottom: 0.85rem;
+    }
+
+    .action-index {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent-deep);
+        font-weight: 800;
+        font-size: 0.9rem;
+        margin-bottom: 0.7rem;
+    }
+
+    .action-text {
+        color: var(--ink);
+        font-size: 0.97rem;
+        line-height: 1.6;
+        font-weight: 500;
+    }
+
+    .output-card {
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 1.1rem 1.15rem;
+        min-height: 220px;
+        box-shadow: 0 14px 28px rgba(16, 35, 63, 0.06);
+    }
+
+    .output-kicker {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--muted);
+        margin-bottom: 0.7rem;
+    }
+
+    .output-body {
+        color: var(--ink);
+        white-space: pre-wrap;
+        line-height: 1.65;
+        font-size: 0.95rem;
+    }
+
+    .output-card.crm {
+        background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
+    }
+
+    .output-card.escalation {
+        background: linear-gradient(180deg, #fffaf0 0%, #fff4dc 100%);
+    }
+
+    .output-card.summary {
+        background: linear-gradient(180deg, #f4fcf8 0%, #e9f8f0 100%);
+    }
+
+    .history-pill {
+        display: inline-block;
+        padding: 0.32rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid rgba(15, 91, 216, 0.16);
+        background: rgba(15, 91, 216, 0.06);
+        color: var(--accent-deep);
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.8rem;
+    }
+
+    .stTextInput label, .stTextArea label {
+        color: var(--ink) !important;
+        font-weight: 650 !important;
+        font-size: 0.83rem !important;
+    }
+
+    .stTextInput input, .stTextArea textarea {
+        border-radius: 16px !important;
+        border: 1px solid #cad5e2 !important;
+        background: rgba(255, 255, 255, 0.92) !important;
+        color: var(--ink) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+    }
+
+    .stTextInput input:focus, .stTextArea textarea:focus {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 4px rgba(15, 91, 216, 0.12) !important;
+    }
+
+    div[data-testid="stForm"] {
+        border: 1px solid rgba(16, 35, 63, 0.08) !important;
+        border-radius: 24px !important;
+        background: rgba(255, 255, 255, 0.88) !important;
+        box-shadow: var(--shadow) !important;
+        padding: 1.25rem 1.2rem 1.35rem 1.2rem !important;
+    }
+
+    .stFormSubmitButton button {
+        border-radius: 16px !important;
+        border: none !important;
+        background: linear-gradient(135deg, #123461 0%, #0f5bd8 100%) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.02em !important;
+        min-height: 3rem !important;
+        box-shadow: 0 16px 32px rgba(15, 91, 216, 0.22) !important;
+    }
+
+    .stFormSubmitButton button p,
+    .stFormSubmitButton button span,
+    .stFormSubmitButton button div {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+
+    .stButton button {
+        border-radius: 999px !important;
+        border: 1px solid #c7d6eb !important;
+        background: rgba(255, 255, 255, 0.88) !important;
+        color: var(--ink) !important;
+        font-weight: 650 !important;
+        min-height: 2.6rem !important;
+    }
+
+    .stButton button:hover {
+        border-color: var(--accent) !important;
+        color: var(--accent-deep) !important;
+    }
+
+    div[data-testid="stExpander"] {
+        background: rgba(255, 255, 255, 0.88) !important;
+        border: 1px solid rgba(16, 35, 63, 0.08) !important;
+        border-radius: 20px !important;
+        overflow: hidden;
+    }
+
+    div[data-testid="stExpander"] summary {
+        font-weight: 650 !important;
+        color: var(--ink) !important;
+    }
+
+    @media (max-width: 900px) {
+        .hero-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .hero-title {
+            font-size: 1.8rem;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+
+raw_scenarios = json.loads(Path("scenarios.json").read_text())
+demo_scenarios = {
+    SCENARIO_LABELS[item["id"]]: {k: v for k, v in item.items() if k != "id"}
+    for item in raw_scenarios
+    if item["id"] in SCENARIO_LABELS
 }
 
-# Initialise form_fields in session state once — defaults to S1
 if "form_fields" not in st.session_state:
-    st.session_state.form_fields = dict(list(DEMO_SCENARIOS.values())[0])
+    st.session_state.form_fields = dict(next(iter(demo_scenarios.values())))
 
-# ── Demo loader ───────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="demo-card">
-    <span class="section-label">Load a Demo Scenario</span>
-</div>
-""", unsafe_allow_html=True)
 
-st.markdown("<div style='margin-top:-2.8rem; padding: 0 0.25rem 0.5rem 0.25rem;'>",
-            unsafe_allow_html=True)
+st.markdown(
+    """
+    <div class="hero-shell">
+        <div class="hero-kicker">Executive Demo Surface</div>
+        <div class="hero-title">Barrier-to-Action intelligence for commercial pharma teams</div>
+        <div class="hero-copy">
+            Turn field, payer, hub, and patient signals into a single barrier diagnosis, a clear accountable owner,
+            and ready-to-use operational outputs for CRM, escalation, and leadership review.
+        </div>
+        <div class="hero-grid">
+            <div class="hero-chip">
+                <div class="hero-chip-label">Decision</div>
+                <div class="hero-chip-value">One barrier prioritized from fragmented commercial signals</div>
+            </div>
+            <div class="hero-chip">
+                <div class="hero-chip-label">Execution</div>
+                <div class="hero-chip-value">Role-based actions generated for the field and support teams</div>
+            </div>
+            <div class="hero-chip">
+                <div class="hero-chip-label">Readout</div>
+                <div class="hero-chip-value">CRM, escalation, and executive artifacts produced in the same workflow</div>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-scenario_labels = list(DEMO_SCENARIOS.keys())
-row1_labels, row2_labels = scenario_labels[:5], scenario_labels[5:]
 
-row1_cols = st.columns(5)
-for col, label in zip(row1_cols, row1_labels):
+with st.expander("About this demo", expanded=False):
+    st.write(
+        "This view is designed for leadership demos. It highlights the barrier decision, accountable owner, "
+        "recommended actions, and the downstream formatted outputs in a compact executive workflow."
+    )
+
+
+st.markdown(
+    """
+    <div class="section-card">
+        <div class="history-pill">Demo Scenarios</div>
+        <div class="section-title">Load a realistic pharma signal</div>
+        <div class="section-copy">Use one of the prepared scenarios to move quickly in a live demo, or edit the inputs below before analyzing.</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+scenario_labels = list(demo_scenarios.keys())
+row_one = st.columns(5)
+for col, label in zip(row_one, scenario_labels[:5]):
     if col.button(label, use_container_width=True):
-        st.session_state.form_fields = dict(DEMO_SCENARIOS[label])
+        st.session_state.form_fields = dict(demo_scenarios[label])
 
-st.markdown("<div style='margin-top:0.4rem;'></div>", unsafe_allow_html=True)
-
-row2_cols = st.columns(5)
-for col, label in zip(row2_cols, row2_labels):
+row_two = st.columns(5)
+for col, label in zip(row_two, scenario_labels[5:10]):
     if col.button(label, use_container_width=True):
-        st.session_state.form_fields = dict(DEMO_SCENARIOS[label])
+        st.session_state.form_fields = dict(demo_scenarios[label])
 
-st.markdown("</div>", unsafe_allow_html=True)
-st.markdown("<div style='margin-top:0.75rem;'></div>", unsafe_allow_html=True)
 
-# ── Input form ────────────────────────────────────────────────────────────────
-# Fields read from session_state.form_fields — survives demo button re-runs.
-# Whatever the user types is captured by the widgets at submit time.
-f = st.session_state.form_fields
+form_values = st.session_state.form_fields
 
-with st.form("barrier_form"):
-    st.markdown("#### Case Signal Input")
-    st.markdown("<div style='margin-bottom:0.5rem;'></div>", unsafe_allow_html=True)
-    col1, col2 = st.columns(2, gap="large")
+left_col, right_col = st.columns([1.05, 1.35], gap="large")
 
-    with col1:
-        event_type     = st.text_input("Event Type",     value=f.get("event_type",     ""))
-        patient_status = st.text_area("Patient Status",  value=f.get("patient_status", ""), height=88)
-        hcp_activity   = st.text_area("HCP Activity",    value=f.get("hcp_activity",   ""), height=88)
-        payer_context  = st.text_area("Payer Context",   value=f.get("payer_context",  ""), height=88)
+with left_col:
+    with st.form("barrier_form"):
+        st.markdown(
+            """
+            <div class="section-card">
+                <div class="section-title">Case Signal Input</div>
+                <div class="section-copy">Capture the event, patient context, payer friction, and operational notes that describe the current case state.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    with col2:
-        hub_activity   = st.text_area("Hub Activity",    value=f.get("hub_activity",   ""), height=88)
-        financial_info = st.text_input("Financial Info", value=f.get("financial_info", ""))
-        timing         = st.text_input("Timing",         value=f.get("timing",         ""))
-        notes          = st.text_area("Notes",           value=f.get("notes",          ""), height=88)
+        submitted = st.form_submit_button(
+            "Analyze Case",
+            use_container_width=True,
+            type="primary",
+        )
+        st.markdown("<div style='margin-bottom:0.85rem;'></div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='margin-top:0.5rem;'></div>", unsafe_allow_html=True)
-    submitted = st.form_submit_button("Analyze Case", use_container_width=True, type="primary")
+        event_type     = st.text_input("Event Type",     value=form_values.get("event_type",     ""))
+        patient_status = st.text_area("Patient Status",  value=form_values.get("patient_status", ""), height=96)
+        hcp_activity   = st.text_area("HCP Activity",    value=form_values.get("hcp_activity",   ""), height=96)
+        payer_context  = st.text_area("Payer Context",   value=form_values.get("payer_context",  ""), height=96)
+        hub_activity   = st.text_area("Hub Activity",    value=form_values.get("hub_activity",   ""), height=96)
+        financial_info = st.text_input("Financial Info", value=form_values.get("financial_info", ""))
+        timing         = st.text_input("Timing",         value=form_values.get("timing",         ""))
+        notes          = st.text_area("Notes",           value=form_values.get("notes",          ""), height=96)
 
-# ── Analysis ──────────────────────────────────────────────────────────────────
 if submitted:
     case_data = {
-        "event_type":     event_type,
+        "event_type": event_type,
         "patient_status": patient_status,
-        "hcp_activity":   hcp_activity,
-        "payer_context":  payer_context,
-        "hub_activity":   hub_activity,
+        "hcp_activity": hcp_activity,
+        "payer_context": payer_context,
+        "hub_activity": hub_activity,
         "financial_info": financial_info,
-        "timing":         timing,
-        "notes":          notes,
+        "timing": timing,
+        "notes": notes,
     }
-    # Persist the user's edits so the form shows them after analysis re-run
     st.session_state.form_fields = dict(case_data)
-    st.session_state["last_input"] = case_data
 
-    with st.spinner("Classifying barrier..."):
+    with st.spinner("Analyzing barrier and generating outputs..."):
         try:
-            result     = analyze_barrier(case_data)
+            result = analyze_barrier(case_data)
             normalized = normalize_analysis(result)
-            formatted  = build_formatted_outputs(result)
+            formatted = build_formatted_outputs(result)
             st.session_state.history.insert(
                 0,
                 {
-                    "input":      case_data,
-                    "output":     result,
+                    "input": case_data,
+                    "output": result,
                     "normalized": normalized,
-                    "formatted":  formatted,
+                    "formatted": formatted,
                 },
             )
-        except Exception as e:
-            st.error(f"Analysis failed: {e}")
+        except Exception as exc:
+            st.error(f"Analysis failed: {exc}")
 
-# ── Output ────────────────────────────────────────────────────────────────────
-if st.session_state.history:
-    latest = st.session_state.history[0]
-    n      = latest["normalized"]
-    f      = latest["formatted"]
 
-    st.divider()
-
-    # ── Classification Result section ─────────────────────────────────────────
-    st.markdown("""
-    <div class="section-header">
-        <h3>Classification Result</h3>
-        <p>Primary barrier detected, accountable owner, and total actions generated</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    kpi1, kpi2, kpi3 = st.columns(3, gap="medium")
-    kpi1.metric("Barrier Detected",  n["barrier"])
-    kpi2.metric("Assigned Owner",    n["owner"])
-    kpi3.metric("Actions Generated", len(n["actions"]))
-
-    st.markdown("<div style='margin-top:1rem;'></div>", unsafe_allow_html=True)
-    st.info(f"**Why:** {n['reason']}")
-    st.markdown("<div style='margin-top:1.25rem;'></div>", unsafe_allow_html=True)
-
-    # ── Recommended Actions section ───────────────────────────────────────────
-    st.markdown("""
-    <div class="section-header">
-        <h3>Recommended Actions</h3>
-        <p>Role-based, executable steps mapped to real-world pharma workflows</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if n["actions"]:
-        for i, action in enumerate(n["actions"], 1):
-            st.markdown(f"{i}. {action}")
-    else:
-        st.caption("No actions generated.")
-
-    st.divider()
-
-    # ── Formatted Outputs section ─────────────────────────────────────────────
-    st.markdown("""
-    <div class="section-header">
-        <h3>Formatted Outputs</h3>
-        <p>CRM-ready task, owner card, escalation note, and executive summary</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    out_col1, out_col2 = st.columns(2, gap="medium")
-
-    with out_col1:
-        with st.container(border=True):
-            st.markdown("**CRM Task Title**")
-            st.code(f["crm_task_title"], language=None)
-
-        with st.container(border=True):
-            st.markdown("**Owner Action Card**")
-            st.text(f["owner_action_card"])
-
-    with out_col2:
-        with st.container(border=True):
-            st.markdown("**Leadership Escalation Note**")
-            st.warning(f["leadership_escalation_note"], icon="⚠️")
-
-        with st.container(border=True):
-            st.markdown("**Executive Summary**")
-            st.success(f["executive_summary"], icon="✅")
-
-    st.divider()
-
-    # ── Workflow Trigger Status section ───────────────────────────────────────
-    st.markdown("""
-    <div class="section-header">
-        <h3>Workflow Trigger Status</h3>
-        <p>Live readiness indicators for downstream system handoffs</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    wf_col1, wf_col2, wf_col3, wf_col4 = st.columns(4, gap="small")
-    wf_col1.markdown("🟢 **Barrier Classified**")
-    wf_col2.markdown("🟢 **Owner Assigned**")
-    wf_col3.markdown("🟡 **CRM Task Ready**")
-    wf_col4.markdown("🔵 **Escalation Note Generated**")
-
-    st.divider()
-
-    # ── Raw / Debug section ───────────────────────────────────────────────────
-    with st.expander("Raw JSON", expanded=False):
-        st.json({"analysis": n, "formatted": f}, expanded=2)
-
-    with st.expander("Input Scenario", expanded=False):
-        st.json(latest["input"], expanded=2)
-
-    # ── Run History ───────────────────────────────────────────────────────────
-    if len(st.session_state.history) > 1:
-        st.divider()
-        st.markdown("""
-        <div class="section-header">
-            <h3>Run History</h3>
-            <p>Previous analyses from this session</p>
+def render_stat_card(label: str, value: str) -> None:
+    safe_label = html.escape(label)
+    safe_value = html.escape(value)
+    st.markdown(
+        f"""
+        <div class="stat-card">
+            <div class="stat-label">{safe_label}</div>
+            <div class="stat-value">{safe_value}</div>
         </div>
-        """, unsafe_allow_html=True)
-        for i, item in enumerate(st.session_state.history[:5], 1):
-            label = (
-                f"Run {i} — {item['normalized']['barrier']} "
-                f"| Owner: {item['normalized']['owner']}"
-            )
-            with st.expander(label, expanded=False):
-                st.json(
-                    {"analysis": item["normalized"], "formatted": item["formatted"]},
-                    expanded=1,
-                )
+        """,
+        unsafe_allow_html=True,
+    )
 
-# ── Footer ────────────────────────────────────────────────────────────────────
-st.divider()
-st.caption("Demo prototype for Barrier-to-Action workflow orchestration.")
+
+def render_output_card(title: str, body: str, extra_class: str = "") -> None:
+    safe_title = html.escape(title)
+    safe_body = html.escape(body)
+    st.markdown(
+        f"""
+        <div class="output-card {extra_class}">
+            <div class="output-kicker">{safe_title}</div>
+            <div class="output-body">{safe_body}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+with right_col:
+    st.markdown(
+        """
+        <div class="section-card">
+            <div class="section-title">Decision Output</div>
+            <div class="section-copy">A polished readout for leadership, sales operations, or cross-functional review.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.session_state.history:
+        latest = st.session_state.history[0]
+        analysis = latest["normalized"]
+        formatted = latest["formatted"]
+
+        stat_one, stat_two, stat_three = st.columns(3, gap="small")
+        with stat_one:
+            render_stat_card("Barrier", analysis["barrier"])
+        with stat_two:
+            render_stat_card("Owner", analysis["owner"])
+        with stat_three:
+            render_stat_card("Actions Generated", str(len(analysis["actions"])))
+
+        safe_reason = html.escape(analysis["reason"])
+        st.markdown(
+            f"""
+            <div class="insight-band">
+                <div class="insight-label">Why this barrier</div>
+                <div class="insight-copy">{safe_reason}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            """
+            <div class="section-card" style="margin-top: 1rem;">
+                <div class="section-title">Recommended Actions</div>
+                <div class="section-copy">Clear next steps for the assigned owner and supporting teams.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if analysis["actions"]:
+            for idx, action in enumerate(analysis["actions"], start=1):
+                safe_action = html.escape(action)
+                st.markdown(
+                    f"""
+                    <div class="action-card">
+                        <div class="action-index">{idx}</div>
+                        <div class="action-text">{safe_action}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("No actions were returned for this case.")
+
+        st.markdown(
+            """
+            <div class="section-card" style="margin-top: 1rem;">
+                <div class="section-title">Formatted Outputs</div>
+                <div class="section-copy">These artifacts are ready to copy into downstream workflows, leadership updates, and CRM tasks.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        output_left, output_right = st.columns(2, gap="medium")
+        with output_left:
+            render_output_card("CRM Task Title", formatted["crm_task_title"], "crm")
+            st.markdown("<div style='height:0.9rem;'></div>", unsafe_allow_html=True)
+            render_output_card("Owner Action Card", formatted["owner_action_card"])
+        with output_right:
+            render_output_card("Leadership Escalation Note", formatted["leadership_escalation_note"], "escalation")
+            st.markdown("<div style='height:0.9rem;'></div>", unsafe_allow_html=True)
+            render_output_card("Executive Summary", formatted["executive_summary"], "summary")
+
+        with st.expander("Raw JSON", expanded=False):
+            st.json({"analysis": analysis, "formatted": formatted}, expanded=2)
+
+        with st.expander("Input Scenario", expanded=False):
+            st.json(latest["input"], expanded=2)
+    else:
+        st.markdown(
+            """
+            <div class="section-card">
+                <div class="section-title">Ready for demo</div>
+                <div class="section-copy">Choose a prepared scenario or enter a case signal on the left, then run the analysis to populate the executive view.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+if len(st.session_state.history) > 1:
+    st.markdown(
+        """
+        <div class="section-card" style="margin-top: 0.8rem;">
+            <div class="section-title">Session History</div>
+            <div class="section-copy">Recent analyses from the current demo session.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    for idx, item in enumerate(st.session_state.history[:5], start=1):
+        label = f"Run {idx} | {item['normalized']['barrier']} | Owner: {item['normalized']['owner']}"
+        with st.expander(label, expanded=False):
+            st.json({"analysis": item["normalized"], "formatted": item["formatted"]}, expanded=1)
+
+st.caption("Barrier-to-Action Agent demo surface for commercial leadership review.")
