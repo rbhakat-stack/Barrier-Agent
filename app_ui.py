@@ -326,6 +326,10 @@ DEMO_SCENARIOS = {
     if s["id"] in SCENARIO_LABELS
 }
 
+# Initialise form_fields in session state once — defaults to S1
+if "form_fields" not in st.session_state:
+    st.session_state.form_fields = dict(list(DEMO_SCENARIOS.values())[0])
+
 # ── Demo loader ───────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="demo-card">
@@ -336,47 +340,45 @@ st.markdown("""
 st.markdown("<div style='margin-top:-2.8rem; padding: 0 0.25rem 0.5rem 0.25rem;'>",
             unsafe_allow_html=True)
 
-selected_demo = None
 scenario_labels = list(DEMO_SCENARIOS.keys())
 row1_labels, row2_labels = scenario_labels[:5], scenario_labels[5:]
 
 row1_cols = st.columns(5)
 for col, label in zip(row1_cols, row1_labels):
     if col.button(label, use_container_width=True):
-        selected_demo = label
+        st.session_state.form_fields = dict(DEMO_SCENARIOS[label])
 
 st.markdown("<div style='margin-top:0.4rem;'></div>", unsafe_allow_html=True)
 
 row2_cols = st.columns(5)
 for col, label in zip(row2_cols, row2_labels):
     if col.button(label, use_container_width=True):
-        selected_demo = label
+        st.session_state.form_fields = dict(DEMO_SCENARIOS[label])
 
 st.markdown("</div>", unsafe_allow_html=True)
-
-active = DEMO_SCENARIOS[selected_demo] if selected_demo else (
-    st.session_state.get("last_input") or list(DEMO_SCENARIOS.values())[0]
-)
-
 st.markdown("<div style='margin-top:0.75rem;'></div>", unsafe_allow_html=True)
 
 # ── Input form ────────────────────────────────────────────────────────────────
+# Fields read from session_state.form_fields — survives demo button re-runs.
+# Whatever the user types is captured by the widgets at submit time.
+f = st.session_state.form_fields
+
 with st.form("barrier_form"):
     st.markdown("#### Case Signal Input")
     st.markdown("<div style='margin-bottom:0.5rem;'></div>", unsafe_allow_html=True)
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
-        event_type     = st.text_input("Event Type",     value=active["event_type"])
-        patient_status = st.text_area("Patient Status",  value=active["patient_status"],  height=88)
-        hcp_activity   = st.text_area("HCP Activity",    value=active["hcp_activity"],    height=88)
-        payer_context  = st.text_area("Payer Context",   value=active["payer_context"],   height=88)
+        event_type     = st.text_input("Event Type",     value=f.get("event_type",     ""))
+        patient_status = st.text_area("Patient Status",  value=f.get("patient_status", ""), height=88)
+        hcp_activity   = st.text_area("HCP Activity",    value=f.get("hcp_activity",   ""), height=88)
+        payer_context  = st.text_area("Payer Context",   value=f.get("payer_context",  ""), height=88)
 
     with col2:
-        hub_activity   = st.text_area("Hub Activity",    value=active["hub_activity"],    height=88)
-        financial_info = st.text_input("Financial Info", value=active["financial_info"])
-        timing         = st.text_input("Timing",         value=active["timing"])
-        notes          = st.text_area("Notes",           value=active["notes"],           height=88)
+        hub_activity   = st.text_area("Hub Activity",    value=f.get("hub_activity",   ""), height=88)
+        financial_info = st.text_input("Financial Info", value=f.get("financial_info", ""))
+        timing         = st.text_input("Timing",         value=f.get("timing",         ""))
+        notes          = st.text_area("Notes",           value=f.get("notes",          ""), height=88)
 
     st.markdown("<div style='margin-top:0.5rem;'></div>", unsafe_allow_html=True)
     submitted = st.form_submit_button("Analyze Case", use_container_width=True, type="primary")
@@ -393,6 +395,8 @@ if submitted:
         "timing":         timing,
         "notes":          notes,
     }
+    # Persist the user's edits so the form shows them after analysis re-run
+    st.session_state.form_fields = dict(case_data)
     st.session_state["last_input"] = case_data
 
     with st.spinner("Classifying barrier..."):
