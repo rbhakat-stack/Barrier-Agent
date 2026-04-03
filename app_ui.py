@@ -1,13 +1,18 @@
 import json
+
 import streamlit as st
-import streamlit as st
-st.write("Secret present:", "ANTHROPIC_API_KEY" in st.secrets)
+st.set_page_config(page_title="Barrier-to-Action Agent", layout="wide")
+# imports that might use streamlit should come AFTER set_page_config
+import json
+from claude_client import analyze_barrier
+from formatter import normalize_analysis, build_formatted_outputs
+
 from pathlib import Path
 from claude_client import analyze_barrier
 from formatter import build_formatted_outputs, normalize_analysis
 
 # ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Barrier-to-Action Agent", layout="wide")
+
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("## Barrier-to-Action Agent")

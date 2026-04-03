@@ -8,7 +8,17 @@ from prompts import SYSTEM_PROMPT
 
 load_dotenv()
 
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+import os
+import streamlit as st
+from anthropic import Anthropic
+
+# Get API key from Streamlit Secrets OR fallback to local env
+api_key = st.secrets.get("ANTHROPIC_API_KEY", os.getenv("ANTHROPIC_API_KEY"))
+
+if not api_key:
+    raise ValueError("Missing ANTHROPIC_API_KEY in Streamlit secrets or environment.")
+
+client = Anthropic(api_key=api_key)
 
 DEFAULT_MODEL = "claude-sonnet-4-5"
 
