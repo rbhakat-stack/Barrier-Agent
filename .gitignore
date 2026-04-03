@@ -1,4 +1,5 @@
 .env
+.env_not needed
 .streamlit/secrets.toml
 __pycache__/
 *.pyc
