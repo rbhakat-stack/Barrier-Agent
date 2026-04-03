@@ -1,5 +1,7 @@
 import json
 import streamlit as st
+import streamlit as st
+st.write("Secret present:", "ANTHROPIC_API_KEY" in st.secrets)
 from pathlib import Path
 from claude_client import analyze_barrier
 from formatter import build_formatted_outputs, normalize_analysis
